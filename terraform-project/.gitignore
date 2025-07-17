@@ -1,0 +1,15 @@
+# Ignore macOS system files
+.DS_Store
+
+# Ignore IDE settings
+.vscode/
+.idea/
+
+# Ignore the PEM file
+class-attendance-mk.pem
+
+# Ignore Terraform directory
+.terraform/
+
+# Ignore zip files
+*.zip

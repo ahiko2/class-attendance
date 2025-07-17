@@ -1,0 +1,5 @@
+aws_region = "ap-northeast-1"
+key_pair_name = "class-attendance-mk"
+database_password = "admin123"
+allowed_ssh_cidr = "119.172.132.227/32"
+s3_bucket_name = "attendance-system-frontend-mk-ap-northeast-1"
