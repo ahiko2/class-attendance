@@ -13,474 +13,528 @@ QR Generator: qrcode.js
 Real-time: Socket.io-client
 HTTP Client: Axios
 Build Tool: Vite
+Deployment: AWS S3 Static Hosting
 ```
 
 ### 1.2 Application Structure
 ```
 src/
-├── components/
-│   ├── common/
-│   │   ├── Header.tsx
-│   │   ├── Footer.tsx
-│   │   ├── LoadingSpinner.tsx
-│   │   └── ErrorBoundary.tsx
-│   ├── auth/
-│   │   ├── LoginForm.tsx
-│   │   ├── RegisterForm.tsx
-│   │   └── ProtectedRoute.tsx
-│   ├── student/
-│   │   ├── Dashboard.tsx
-│   │   ├── QRScanner.tsx
-│   │   ├── AttendanceHistory.tsx
-│   │   └── ClassList.tsx
-│   └── employee/
-│       ├── Dashboard.tsx
-│       ├── QRGenerator.tsx
-│       ├── SessionManager.tsx
-│       └── AttendanceReport.tsx
-├── pages/
-│   ├── Landing.tsx
-│   ├── Login.tsx
-│   ├── Register.tsx
-│   ├── StudentDashboard.tsx
-│   └── EmployeeDashboard.tsx
-├── hooks/
-│   ├── useAuth.tsx
-│   ├── useWebSocket.tsx
-│   ├── useQRScanner.tsx
-│   └── useAttendance.tsx
-├── contexts/
-│   ├── AuthContext.tsx
-│   ├── ThemeContext.tsx
-│   └── NotificationContext.tsx
-├── services/
-│   ├── api.ts
-│   ├── auth.ts
-│   ├── attendance.ts
-│   └── websocket.ts
-├── utils/
-│   ├── constants.ts
-│   ├── helpers.ts
-│   └── types.ts
-└── App.tsx
+├── components/          # Reusable UI components
+│   ├── common/         # Shared components
+│   ├── auth/          # Authentication components
+│   ├── student/       # Student-specific components
+│   └── employee/      # Employee-specific components
+├── pages/              # Page components
+│   ├── public/        # Public pages
+│   ├── student/       # Student portal pages
+│   └── employee/      # Employee portal pages
+├── hooks/              # Custom React hooks
+├── contexts/           # React contexts
+├── services/           # API and external services
+├── utils/              # Helper functions
+├── types/              # TypeScript type definitions
+└── assets/             # Static assets
 ```
 
-## 2. Routing Architecture
+## 2. User Interface Architecture
 
-### 2.1 Route Structure
-```typescript
-const routes = [
-  {
-    path: "/",
-    element: <Landing />,
-    public: true
-  },
-  {
-    path: "/auth/login",
-    element: <Login />,
-    public: true
-  },
-  {
-    path: "/auth/register", 
-    element: <Register />,
-    public: true
-  },
-  {
-    path: "/student",
-    element: <ProtectedRoute role="student" />,
-    children: [
-      { path: "/", element: <StudentDashboard /> },
-      { path: "/scan", element: <QRScanner /> },
-      { path: "/history", element: <AttendanceHistory /> },
-      { path: "/classes", element: <ClassList /> }
-    ]
-  },
-  {
-    path: "/employee",
-    element: <ProtectedRoute role="employee" />,
-    children: [
-      { path: "/", element: <EmployeeDashboard /> },
-      { path: "/sessions", element: <SessionManager /> },
-      { path: "/generate-qr", element: <QRGenerator /> },
-      { path: "/reports", element: <AttendanceReport /> }
-    ]
-  }
-];
-```
-
-### 2.2 Protected Route Implementation
-```typescript
-const ProtectedRoute: React.FC<{ role: 'student' | 'employee' }> = ({ role }) => {
-  const { user, isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />;
-  }
-  
-  if (user?.role !== role) {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <Outlet />;
-};
-```
-
-## 3. State Management
-
-### 3.1 Auth Context
-```typescript
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  loading: boolean;
-  error: string | null;
-}
-
-const AuthContext = createContext<{
-  state: AuthState;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  register: (userData: RegisterData) => Promise<void>;
-} | undefined>(undefined);
-```
-
-### 3.2 Attendance Context
-```typescript
-interface AttendanceState {
-  sessions: Session[];
-  currentSession: Session | null;
-  attendanceRecords: AttendanceRecord[];
-  loading: boolean;
-}
-
-const AttendanceContext = createContext<{
-  state: AttendanceState;
-  markAttendance: (qrToken: string) => Promise<void>;
-  generateQR: (sessionId: string) => Promise<string>;
-  startSession: (sessionId: string) => Promise<void>;
-  endSession: (sessionId: string) => Promise<void>;
-} | undefined>(undefined);
-```
-
-## 4. Component Architecture
-
-### 4.1 Student Portal Components
-
-#### QR Scanner Component
-```typescript
-const QRScanner: React.FC = () => {
-  const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const { markAttendance } = useAttendance();
-  
-  const handleScan = async (data: string) => {
-    if (data) {
-      setScanning(false);
-      try {
-        await markAttendance(data);
-        setResult('Attendance marked successfully!');
-      } catch (error) {
-        setResult('Failed to mark attendance');
-      }
-    }
-  };
-  
-  return (
-    <div className="qr-scanner-container">
-      {scanning && (
-        <QrReader
-          delay={300}
-          onError={handleError}
-          onScan={handleScan}
-          style={{ width: '100%' }}
-        />
-      )}
-      <button onClick={() => setScanning(!scanning)}>
-        {scanning ? 'Stop Scanner' : 'Start Scanner'}
-      </button>
-      {result && <div className="result">{result}</div>}
-    </div>
-  );
-};
-```
-
-#### Attendance History Component
-```typescript
-const AttendanceHistory: React.FC = () => {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    fetchAttendanceHistory();
-  }, []);
-  
-  const fetchAttendanceHistory = async () => {
-    try {
-      const data = await api.get('/attendance/student/history');
-      setRecords(data);
-    } catch (error) {
-      console.error('Failed to fetch attendance history');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  return (
-    <div className="attendance-history">
-      <h2>Attendance History</h2>
-      {loading ? (
-        <LoadingSpinner />
-      ) : (
-        <div className="records-grid">
-          {records.map(record => (
-            <AttendanceCard key={record.id} record={record} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-```
-
-### 4.2 Employee Portal Components
-
-#### QR Generator Component
-```typescript
-const QRGenerator: React.FC = () => {
-  const [qrCode, setQRCode] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string>('');
-  const { generateQR } = useAttendance();
-  const { socket } = useWebSocket();
-  
-  const handleGenerateQR = async () => {
-    try {
-      const qrData = await generateQR(sessionId);
-      setQRCode(qrData);
-      
-      // Set auto-refresh for QR code (every 5 minutes)
-      setTimeout(() => {
-        handleGenerateQR();
-      }, 5 * 60 * 1000);
-    } catch (error) {
-      console.error('Failed to generate QR code');
-    }
-  };
-  
-  useEffect(() => {
-    if (socket) {
-      socket.on('attendance-marked', (data) => {
-        // Update UI with new attendance
-        console.log('New attendance:', data);
-      });
-    }
-  }, [socket]);
-  
-  return (
-    <div className="qr-generator">
-      <h2>Generate QR Code</h2>
-      <div className="session-selector">
-        <select 
-          value={sessionId} 
-          onChange={(e) => setSessionId(e.target.value)}
-        >
-          <option value="">Select Session</option>
-          {/* Session options */}
-        </select>
-        <button onClick={handleGenerateQR}>Generate QR</button>
-      </div>
-      {qrCode && (
-        <div className="qr-display">
-          <QRCodeDisplay value={qrCode} />
-          <p>QR Code expires in 5 minutes</p>
-        </div>
-      )}
-    </div>
-  );
-};
-```
-
-## 5. Real-time Features
-
-### 5.1 WebSocket Hook
-```typescript
-const useWebSocket = () => {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [connected, setConnected] = useState(false);
-  
-  useEffect(() => {
-    const newSocket = io(process.env.REACT_APP_WS_URL || 'http://localhost:3001');
+### 2.1 Page Hierarchy
+```mermaid
+graph TD
+    Root[App Root]
+    Root --> Landing[Landing Page]
+    Root --> Auth[Authentication]
+    Root --> Student[Student Portal]
+    Root --> Employee[Employee Portal]
     
-    newSocket.on('connect', () => {
-      setConnected(true);
-    });
+    Landing --> RoleSelect[Role Selection]
     
-    newSocket.on('disconnect', () => {
-      setConnected(false);
-    });
+    Auth --> Login[Login Page]
+    Auth --> Register[Register Page]
     
-    setSocket(newSocket);
+    Student --> SDash[Student Dashboard]
+    Student --> QRScan[QR Scanner]
+    Student --> History[Attendance History]
+    Student --> Profile[Student Profile]
     
-    return () => {
-      newSocket.close();
-    };
-  }, []);
-  
-  return { socket, connected };
-};
+    Employee --> EDash[Employee Dashboard]
+    Employee --> Classes[Class Management]
+    Employee --> QRGen[QR Generator]
+    Employee --> Live[Live Attendance]
+    Employee --> Reports[Reports]
 ```
 
-### 5.2 Real-time Attendance Updates
-```typescript
-const AttendanceMonitor: React.FC = () => {
-  const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>([]);
-  const { socket } = useWebSocket();
-  
-  useEffect(() => {
-    if (socket) {
-      socket.on('attendance-marked', (newAttendance: AttendanceRecord) => {
-        setAttendanceList(prev => [...prev, newAttendance]);
-      });
-      
-      socket.on('qr-generated', (qrData) => {
-        // Update QR display
-      });
+### 2.2 Component Architecture
+```yaml
+Layout Components:
+  - AppLayout: Main application wrapper
+  - PublicLayout: Layout for public pages
+  - StudentLayout: Student portal layout
+  - EmployeeLayout: Employee portal layout
+
+Common Components:
+  - Header: Navigation bar
+  - Sidebar: Side navigation (employee)
+  - Footer: App footer
+  - LoadingSpinner: Loading indicator
+  - ErrorBoundary: Error handling wrapper
+  - Modal: Reusable modal component
+  - Alert: Notification component
+
+Feature Components:
+  - QRScanner: Camera-based QR scanner
+  - QRDisplay: QR code display with timer
+  - AttendanceCard: Individual attendance record
+  - ClassCard: Class information display
+  - LiveCounter: Real-time attendance counter
+  - ReportGenerator: Report creation interface
+```
+
+## 3. Routing & Navigation
+
+### 3.1 Route Structure
+```yaml
+Public Routes:
+  /: Landing page
+  /login: Login page
+  /register: Registration page
+  /about: About page
+
+Student Routes:
+  /student: Student dashboard
+  /student/scan: QR scanner
+  /student/attendance: Attendance history
+  /student/classes: Enrolled classes
+  /student/profile: Profile settings
+
+Employee Routes:
+  /employee: Employee dashboard
+  /employee/classes: Class management
+  /employee/sessions: Session management
+  /employee/qr: QR code generator
+  /employee/attendance: Live attendance view
+  /employee/reports: Reports & analytics
+
+Protected Route Rules:
+  - Redirect to login if not authenticated
+  - Redirect to correct portal based on role
+  - 404 page for invalid routes
+```
+
+### 3.2 Navigation Flow
+```mermaid
+stateDiagram-v2
+    [*] --> Landing: Initial Load
+    Landing --> RoleSelection: Choose Role
+    
+    RoleSelection --> StudentLogin: Select Student
+    RoleSelection --> EmployeeLogin: Select Employee
+    
+    StudentLogin --> StudentDashboard: Success
+    EmployeeLogin --> EmployeeDashboard: Success
+    
+    StudentDashboard --> QRScanner: Scan QR
+    StudentDashboard --> AttendanceHistory: View History
+    
+    EmployeeDashboard --> QRGenerator: Start Session
+    EmployeeDashboard --> Reports: View Reports
+    
+    QRScanner --> AttendanceMarked: Success
+    AttendanceMarked --> StudentDashboard: Return
+```
+
+## 4. State Management Design
+
+### 4.1 Global State Structure
+```yaml
+Authentication Context:
+  user:
+    id: string
+    email: string
+    fullName: string
+    role: 'student' | 'employee'
+  isAuthenticated: boolean
+  isLoading: boolean
+  error: string | null
+
+Theme Context:
+  theme: 'light' | 'dark'
+  primaryColor: string
+
+Notification Context:
+  notifications: Array<{
+    id: string
+    type: 'success' | 'error' | 'info'
+    message: string
+    duration: number
+  }>
+```
+
+### 4.2 Feature-Specific State
+```yaml
+Student State:
+  attendance:
+    records: AttendanceRecord[]
+    statistics: {
+      totalClasses: number
+      attended: number
+      percentage: number
     }
-  }, [socket]);
-  
-  return (
-    <div className="attendance-monitor">
-      <h3>Live Attendance</h3>
-      <div className="attendance-list">
-        {attendanceList.map(record => (
-          <div key={record.id} className="attendance-item">
-            {record.student.name} - {record.markedAt}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+  scanner:
+    isScanning: boolean
+    lastScan: ScanResult | null
+
+Employee State:
+  classes:
+    list: Class[]
+    selected: Class | null
+  activeSession:
+    id: string
+    qrCode: string
+    expiresAt: Date
+    attendees: Student[]
+    liveCount: number
+  reports:
+    filters: ReportFilters
+    data: ReportData[]
 ```
 
-## 6. Mobile Responsiveness
+## 5. User Interface Design
 
-### 6.1 Responsive Design Approach
-```css
-/* Mobile-first approach with Tailwind CSS */
-.qr-scanner-container {
-  @apply w-full max-w-md mx-auto p-4;
-}
+### 5.1 Design System
+```yaml
+Colors:
+  Primary: Blue (#3B82F6)
+  Secondary: Purple (#8B5CF6)
+  Success: Green (#10B981)
+  Warning: Yellow (#F59E0B)
+  Error: Red (#EF4444)
+  Neutral: Gray scale
 
-.qr-scanner-container video {
-  @apply w-full h-64 object-cover rounded-lg;
-}
+Typography:
+  Font Family: Inter, system-ui
+  Headings: Bold, varied sizes
+  Body: Regular, 16px base
+  Captions: 14px, gray-600
 
-@media (min-width: 768px) {
-  .qr-scanner-container {
-    @apply max-w-2xl;
-  }
-  
-  .qr-scanner-container video {
-    @apply h-96;
-  }
-}
+Spacing:
+  Base unit: 4px
+  Common: 8px, 16px, 24px, 32px
+
+Components:
+  Border Radius: 8px (default)
+  Shadow: Small, medium, large
+  Transitions: 200ms ease
 ```
 
-### 6.2 Touch-friendly Interface
-```typescript
-const TouchFriendlyButton: React.FC = () => {
-  return (
-    <button className="w-full py-4 px-6 text-lg font-medium bg-blue-600 text-white rounded-lg touch-manipulation">
-      Scan QR Code
-    </button>
-  );
-};
+### 5.2 Responsive Design
+```yaml
+Breakpoints:
+  Mobile: 0-639px
+  Tablet: 640px-1023px
+  Desktop: 1024px+
+
+Mobile Adaptations:
+  - Single column layouts
+  - Bottom navigation
+  - Full-screen modals
+  - Touch-friendly buttons (min 44px)
+  - Swipe gestures for navigation
+
+Tablet Adaptations:
+  - Two column layouts
+  - Side navigation drawer
+  - Floating action buttons
+  - Responsive grid system
+
+Desktop Adaptations:
+  - Multi-column layouts
+  - Fixed sidebar navigation
+  - Hover states
+  - Keyboard shortcuts
 ```
 
-## 7. Performance Optimizations
+## 6. Student Portal Features
 
-### 7.1 Code Splitting
-```typescript
-const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
-const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'));
+### 6.1 QR Scanner Interface
+```yaml
+Scanner View:
+  - Full-screen camera view
+  - Scanning indicator overlay
+  - Instructions text
+  - Cancel button
+  - Auto-focus on QR detection
 
-const App: React.FC = () => {
-  return (
-    <Router>
-      <Suspense fallback={<LoadingSpinner />}>
-        <Routes>
-          <Route path="/student/*" element={<StudentDashboard />} />
-          <Route path="/employee/*" element={<EmployeeDashboard />} />
-        </Routes>
-      </Suspense>
-    </Router>
-  );
-};
+Success State:
+  - Green checkmark animation
+  - Class name display
+  - Timestamp
+  - Auto-redirect after 3 seconds
+
+Error States:
+  - Invalid QR: Red overlay with message
+  - Expired QR: Show expiration message
+  - Already marked: Show previous timestamp
+  - Not enrolled: Enrollment prompt
 ```
 
-### 7.2 Memoization
-```typescript
-const AttendanceCard = React.memo<{ record: AttendanceRecord }>(({ record }) => {
-  return (
-    <div className="attendance-card">
-      <h4>{record.session.class.name}</h4>
-      <p>Status: {record.status}</p>
-      <p>Time: {formatDate(record.markedAt)}</p>
-    </div>
-  );
-});
+### 6.2 Attendance History View
+```yaml
+List View:
+  - Grouped by month
+  - Color-coded status (present/late/absent)
+  - Filter by class
+  - Search functionality
+  - Pull to refresh
+
+Detail View:
+  - Class information
+  - Session date/time
+  - Marked timestamp
+  - Status badge
+  - Location (if available)
+
+Statistics Dashboard:
+  - Overall percentage
+  - Monthly chart
+  - Class-wise breakdown
+  - Streak counter
 ```
 
-## 8. Error Handling & UX
+## 7. Employee Portal Features
 
-### 8.1 Error Boundary
-```typescript
-class ErrorBoundary extends React.Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true };
-  }
-  
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="error-fallback">
-          <h2>Something went wrong</h2>
-          <button onClick={() => window.location.reload()}>
-            Reload Page
-          </button>
-        </div>
-      );
-    }
+### 7.1 QR Generator Interface
+```yaml
+Session Setup:
+  - Class selection dropdown
+  - Session duration setter
+  - Start session button
+  - Advanced options toggle
+
+QR Display:
+  - Large QR code (min 300x300px)
+  - Countdown timer
+  - Session details
+  - Refresh button
+  - End session button
+
+Live View Split Screen:
+  - Left: QR code display
+  - Right: Live attendance list
+  - Top: Statistics bar
+  - Bottom: Control buttons
+```
+
+### 7.2 Reports Interface
+```yaml
+Report Filters:
+  - Date range picker
+  - Class multi-select
+  - Status filter
+  - Export format selector
+
+Report Display:
+  - Summary statistics cards
+  - Attendance table
+  - Visualization charts
+  - Export button
+  - Print preview
+
+Chart Types:
+  - Line chart: Attendance over time
+  - Bar chart: Class comparison
+  - Pie chart: Status distribution
+  - Heatmap: Weekly patterns
+```
+
+## 8. Real-time Features
+
+### 8.1 WebSocket Integration
+```yaml
+Connection Management:
+  - Auto-connect on app load
+  - Reconnection with backoff
+  - Connection status indicator
+  - Error handling
+
+Event Subscriptions:
+  Student Events:
+    - attendance-confirmed
+    - session-started
+    - session-ended
     
-    return this.props.children;
-  }
-}
+  Employee Events:
+    - attendance-marked
+    - student-joined
+    - qr-refreshed
+    - session-stats-update
 ```
 
-### 8.2 Loading States
-```typescript
-const LoadingButton: React.FC<{ loading: boolean; onClick: () => void }> = ({ 
-  loading, 
-  onClick,
-  children 
-}) => {
-  return (
-    <button 
-      onClick={onClick}
-      disabled={loading}
-      className="btn-primary"
-    >
-      {loading ? <LoadingSpinner size="sm" /> : children}
-    </button>
-  );
-};
+### 8.2 Live Updates UI
+```yaml
+Attendance Counter:
+  - Animated number increment
+  - Progress bar
+  - Percentage display
+  - Color change on milestones
+
+Student List:
+  - Real-time addition
+  - Fade-in animation
+  - Status indicators
+  - Timestamp display
+
+Notifications:
+  - Toast notifications
+  - Sound alerts (optional)
+  - Badge updates
+  - Push notifications (future)
+```
+
+## 9. Performance Optimization
+
+### 9.1 Code Optimization
+```yaml
+Bundle Optimization:
+  - Code splitting by route
+  - Lazy loading components
+  - Tree shaking unused code
+  - Minification & compression
+
+Asset Optimization:
+  - Image lazy loading
+  - WebP format for images
+  - SVG for icons
+  - Font subsetting
+
+Caching Strategy:
+  - Browser caching headers
+  - Service worker (PWA)
+  - API response caching
+  - Local storage for preferences
+```
+
+### 9.2 Runtime Performance
+```yaml
+React Optimizations:
+  - Memo for expensive components
+  - useCallback for functions
+  - useMemo for calculations
+  - Virtual scrolling for lists
+
+State Management:
+  - Minimize re-renders
+  - Batch state updates
+  - Debounce search inputs
+  - Throttle scroll events
+
+API Optimization:
+  - Request debouncing
+  - Pagination
+  - Infinite scroll
+  - Optimistic updates
+```
+
+## 10. Accessibility & UX
+
+### 10.1 Accessibility Features
+```yaml
+WCAG Compliance:
+  - Semantic HTML elements
+  - ARIA labels and roles
+  - Keyboard navigation
+  - Focus management
+  - Screen reader support
+
+Visual Accessibility:
+  - High contrast mode
+  - Font size controls
+  - Color blind friendly
+  - Reduced motion option
+  - Clear focus indicators
+```
+
+### 10.2 User Experience
+```yaml
+Onboarding:
+  - Welcome tour (first login)
+  - Feature tooltips
+  - Help documentation
+  - Video tutorials
+
+Error Handling:
+  - User-friendly messages
+  - Recovery suggestions
+  - Retry mechanisms
+  - Fallback UI
+
+Loading States:
+  - Skeleton screens
+  - Progress indicators
+  - Optimistic updates
+  - Stale-while-revalidate
+```
+
+## 11. Security Considerations
+
+### 11.1 Client-Side Security
+```yaml
+Authentication:
+  - JWT storage in memory/localStorage
+  - Auto logout on inactivity
+  - Token refresh mechanism
+  - Secure route protection
+
+Data Protection:
+  - Input sanitization
+  - XSS prevention
+  - HTTPS only
+  - No sensitive data in URLs
+```
+
+### 11.2 API Security
+```yaml
+Request Security:
+  - CORS configuration
+  - API request signing
+  - Rate limiting awareness
+  - Error message sanitization
+
+Session Security:
+  - Timeout handling
+  - Multi-tab synchronization
+  - Logout on all tabs
+  - Clear data on logout
+```
+
+## 12. Deployment & Build
+
+### 12.1 Build Configuration
+```yaml
+Production Build:
+  - Environment variables
+  - API endpoint configuration
+  - Source maps (optional)
+  - Bundle analysis
+
+Build Output:
+  - Static HTML/CSS/JS
+  - Compressed assets
+  - Hashed filenames
+  - robots.txt & sitemap
+```
+
+### 12.2 Deployment Strategy
+```yaml
+S3 Deployment:
+  - Build locally or CI/CD
+  - Upload to S3 bucket
+  - CloudFront invalidation
+  - Environment-specific builds
+
+Monitoring:
+  - Error tracking (Sentry)
+  - Analytics (Google Analytics)
+  - Performance monitoring
+  - User feedback widget
 ```
