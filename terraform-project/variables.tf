@@ -49,7 +49,7 @@ variable "database_name" {
 variable "database_username" {
   description = "Database master username"
   type        = string
-  default     = "admin"
+  default     = "dbadmin"
 }
 
 variable "database_password" {
@@ -63,6 +63,36 @@ variable "lambda_function_name" {
   description = "Name of the Lambda function"
   type        = string
   default     = "cleanupExpiredSessions"
+}
+
+variable "lambda_schedule_enabled" {
+  description = "Enable or disable the Lambda function schedule"
+  type        = bool
+  default     = false
+}
+
+variable "enable_ec2" {
+  description = "Enable or disable EC2 instance creation"
+  type        = bool
+  default     = false
+}
+
+variable "enable_rds" {
+  description = "Enable or disable RDS database creation"
+  type        = bool
+  default     = false
+}
+
+variable "enable_lambda" {
+  description = "Enable or disable Lambda function creation"
+  type        = bool
+  default     = false
+}
+
+variable "enable_s3" {
+  description = "Enable or disable S3 bucket creation"
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

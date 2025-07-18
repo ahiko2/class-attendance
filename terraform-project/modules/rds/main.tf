@@ -8,7 +8,7 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_parameter_group" "main" {
-  family = "postgres14"
+  family = "postgres15"
   name   = "${replace(var.database_name, "_", "-")}-params"
 
   parameter {
@@ -29,7 +29,7 @@ resource "aws_db_instance" "main" {
   
   # Engine settings
   engine         = "postgres"
-  engine_version = "14.9"
+  engine_version = "15.8"
   instance_class = var.instance_class
   
   # Storage settings

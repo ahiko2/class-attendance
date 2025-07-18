@@ -10,6 +10,7 @@ class-attendance-mk.pem
 
 # Ignore Terraform directory
 .terraform/
+.terraform.lock.hcl
 
 # Ignore zip files
 *.zip
