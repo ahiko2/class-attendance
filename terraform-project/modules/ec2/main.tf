@@ -76,7 +76,7 @@ resource "aws_instance" "backend" {
     volume_size = 8
   }
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {}))
+  user_data_base64 = base64encode(templatefile("${path.module}/user_data.sh", {}))
 
   tags = merge(var.tags, {
     Name = "attendance-backend"

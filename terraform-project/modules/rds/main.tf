@@ -1,5 +1,5 @@
 resource "aws_db_subnet_group" "main" {
-  name       = "${var.database_name}-subnet-group"
+  name       = "${replace(var.database_name, "_", "-")}-subnet-group"
   subnet_ids = var.subnet_ids
 
   tags = merge(var.tags, {
@@ -9,7 +9,7 @@ resource "aws_db_subnet_group" "main" {
 
 resource "aws_db_parameter_group" "main" {
   family = "postgres14"
-  name   = "${var.database_name}-params"
+  name   = "${replace(var.database_name, "_", "-")}-params"
 
   parameter {
     name  = "shared_preload_libraries"
@@ -25,7 +25,7 @@ resource "aws_db_parameter_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier = var.database_name
+  identifier = replace(var.database_name, "_", "-")
   
   # Engine settings
   engine         = "postgres"
@@ -75,7 +75,7 @@ resource "aws_db_instance" "main" {
 
 resource "aws_iam_role" "rds_monitoring" {
   count = var.monitoring_interval > 0 ? 1 : 0
-  name  = "${var.database_name}-rds-monitoring-role"
+  name  = "${replace(var.database_name, "_", "-")}-rds-monitoring-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
